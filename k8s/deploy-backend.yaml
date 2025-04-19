@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: ghcr.io/mark0613/backend:latest
+        ports:
+        - containerPort: 8888
+      volumes:
+      - name: backend-volume
+        hostPath:
+          path: ./backend
+      - name: node-modules
+        emptyDir: {}

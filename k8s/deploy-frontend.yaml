@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ghcr.io/mark0613/frontend:latest
+        ports:
+        - containerPort: 5173
+      volumes:
+      - name: frontend-volume
+        hostPath:
+          path: ./frontend
+      - name: node-modules
+        emptyDir: {}
