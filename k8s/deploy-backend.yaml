@@ -17,6 +17,12 @@ spec:
         image: ghcr.io/mark0613/backend:latest
         ports:
         - containerPort: 8888
+        livenessProbe:
+          httpGet:
+            path: /ping
+            port: 8888
+          initialDelaySeconds: 15
+          periodSeconds: 20
       volumes:
       - name: backend-volume
         hostPath:

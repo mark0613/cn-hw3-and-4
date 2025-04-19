@@ -17,6 +17,12 @@ spec:
         image: ghcr.io/mark0613/frontend:latest
         ports:
         - containerPort: 5173
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5173
+          initialDelaySeconds: 15
+          periodSeconds: 20
       volumes:
       - name: frontend-volume
         hostPath:
