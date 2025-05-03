@@ -1,0 +1,190 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (Backend)
+        run: npm ci
+        working-directory: ./backend
+
+      - name: Run Backend Unit Tests with Coverage
+        run: npm run test
+        working-directory: ./backend
+
+      - name: Upload Coverage Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/coverage
+
+      # Compare coverage with previous run
+      - name: Find previous successful workflow run
+        id: get_previous_run
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const workflow_id = 'ci.yaml';
+            const branch = 'main';
+
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id,
+              branch,
+              status: 'success',
+              per_page: 1
+            });
+
+            if (runs.data.workflow_runs.length > 0) {
+              const previousRun = runs.data.workflow_runs[0];
+              console.log(`Found previous successful run: ${previousRun.id}`);
+              core.setOutput('run_id', previousRun.id);
+            } else {
+              console.log('No previous successful run found on main branch.');
+              core.setOutput('run_id', ''); // Indicate no previous run
+            }
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install adm-zip
+        run: npm install adm-zip
+
+      - name: Install xml2js
+        run: npm install xml2js
+
+      - name: Download previous coverage artifact
+        if: steps.get_previous_run.outputs.run_id != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const run_id = ${{ steps.get_previous_run.outputs.run_id }};
+            const artifactName = 'backend-coverage-report';
+
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id
+            });
+
+            const artifact = artifacts.data.artifacts.find(art => art.name === artifactName);
+
+            if (artifact) {
+              console.log(`Downloading artifact: ${artifact.name}`);
+              const download = await github.rest.actions.downloadArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip'
+              });
+
+              const fs = require('fs');
+              const path = require('path');
+              const AdmZip = require('adm-zip');
+
+              const zip = new AdmZip(Buffer.from(download.data));
+              zip.extractAllTo('./previous_coverage', true);
+              console.log('Artifact downloaded and extracted to ./previous_coverage');
+            } else {
+              console.log(`Artifact "${artifactName}" not found in run ${run_id}.`);
+            }
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compare coverage with previous run
+        if: steps.get_previous_run.outputs.run_id != '' # Only compare if a previous run was found
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const xml2js = require('xml2js');
+
+            const currentCoveragePath = path.join(process.env.GITHUB_WORKSPACE, 'backend/coverage/clover.xml');
+            const previousCoveragePath = path.join(process.env.GITHUB_WORKSPACE, 'previous_coverage/clover.xml');
+
+            if (!fs.existsSync(currentCoveragePath)) {
+              core.setFailed(`Current coverage report not found at ${currentCoveragePath}!`);
+              return;
+            }
+
+            if (!fs.existsSync(previousCoveragePath)) {
+              console.log(`Previous coverage report not found at ${previousCoveragePath}. Skipping comparison.`);
+              return;
+            }
+
+            // Parse Clover XML to get total line coverage
+            async function parseClover(filePath) {
+              const content = fs.readFileSync(filePath, 'utf-8');
+              let coverage = 0;
+              const parser = new xml2js.Parser({ explicitArray: false });
+
+              await parser.parseString(content, (err, result) => {
+                if (err) {
+                  console.error('Error parsing Clover XML:', err);
+                  return 0;
+                }
+                try {
+                  const metrics = result.coverage.project.metrics;
+                  const coveredStatements = parseInt(metrics.coveredstatements, 10);
+                  const statements = parseInt(metrics.statements, 10);
+                  coverage = statements > 0 ? (coveredStatements / statements) * 100 : 0;
+                } catch (e) {
+                  console.error('Error extracting metrics from Clover XML:', e);
+                  return 0;
+                }
+              });
+              return coverage;
+            }
+
+            const currentCoverage = await parseClover(currentCoveragePath);
+            const previousCoverage = await parseClover(previousCoveragePath);
+
+            console.log(`Current Coverage: ${currentCoverage.toFixed(2)}%`);
+            console.log(`Previous Coverage: ${previousCoverage.toFixed(2)}%`);
+
+            if (currentCoverage < previousCoverage) {
+              core.setFailed(`Code coverage decreased from ${previousCoverage.toFixed(2)}% to ${currentCoverage.toFixed(2)}%.`);
+            } else {
+              console.log('Code coverage did not decrease.');
+            }
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up previous coverage directory
+        run: rm -rf previous_coverage
+
+      - name: Install Prettier
+        run: npm install --save-dev prettier
+
+      - name: Run Prettier to format code
+        run: npx prettier --write $(git diff --name-only HEAD~1 HEAD --relative) || true
+
+      - name: Check for code changes after formatting
+        id: git_status
+        run: echo "::set-output name=changed::$(git status --porcelain)"
+
+      - name: Commit and push changes if any
+        if: steps.git_status.outputs.changed != ''
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "style: Auto-format code with Prettier"
