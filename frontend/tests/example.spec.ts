@@ -33,6 +33,6 @@ test.describe('Todo', () => {
     const deleteButton = page.getByRole('button', { name: 'Delete' })
     await deleteButton.click()
 
-    await expect(page.locator('.Card--text h1')).not.toContainText('AAA')
+    await expect(page.locator('.Card--text h1')).not.toBeVisible()
   })
 })
