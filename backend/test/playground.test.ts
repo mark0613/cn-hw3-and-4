@@ -10,6 +10,10 @@ describe('my testing playground', () => {
     expect(actual).toBe(expected)
   })
 
+  test('this test should fail', () => {
+    expect(true).toBe(false); // This will always fail
+  })
+
   describe('add function testing', () => {
     it('should return 3 when add 1 and 2', () => {
       expect(myCustomAdd(1, 2)).toBe(3)
