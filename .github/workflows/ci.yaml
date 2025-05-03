@@ -2,11 +2,6 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   ci:
@@ -146,8 +141,8 @@ jobs:
                 }
                 try {
                   const metrics = result.coverage.project.metrics;
-                  const coveredStatements = parseInt(metrics.coveredstatements, 10);
-                  const statements = parseInt(metrics.statements, 10);
+                  const coveredStatements = parseInt(metrics.$.coveredstatements, 10);
+                  const statements = parseInt(metrics.$.statements, 10);
                   coverage = statements > 0 ? (coveredStatements / statements) * 100 : 0;
                 } catch (e) {
                   console.error('Error extracting metrics from Clover XML:', e);
