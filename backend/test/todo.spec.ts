@@ -11,16 +11,16 @@ describe('Todo API Testing', () => {
 
   test('Given an empty array return from repo function, When send a GET request to /api/v1/todos, Then it should response an empty array', async () => {
     // arrange: stub the repo function to return an empty array
-      vi.spyOn(TodoRepo, 'findAllTodos').mockImplementation(async () => [])
+    vi.spyOn(TodoRepo, 'findAllTodos').mockImplementation(async () => [])
 
-      // act: send a GET request to /api/v1/todos
-      const response = await server.inject({
-        method: 'GET',
-        url: '/api/v1/todos'
-      })
+    // act: send a GET request to /api/v1/todos
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/todos'
+    })
 
-      // assert: response should be an empty array
-      const todos = JSON.parse(response.body)['todos']
-      expect(todos).toStrictEqual([])
+    // assert: response should be an empty array
+    const todos = JSON.parse(response.body)['todos']
+    expect(todos).toStrictEqual([])
   })
 })
